@@ -1,0 +1,6 @@
+strategy,annualized_return,annualized_volatility,sharpe_ratio,sortino_ratio,max_drawdown,calmar_ratio,num_trades
+Buy & Hold,0.0072,0.2527,0.0286,0.0254,-0.5529,0.0131,5.0000
+"SMA(10,50) crossover",0.0318,0.1210,0.2630,0.1895,-0.2917,0.1091,140.0000
+"SMA(20,100) crossover",0.0212,0.1279,0.1655,0.1163,-0.2752,0.0769,83.0000
+"SMA(50,200) crossover",0.0213,0.1332,0.1598,0.1092,-0.3619,0.0588,29.0000
+"SMA(20,100) — zero costs (illustrative)",0.0242,0.1278,0.1891,0.1326,-0.2739,0.0883,83.0000

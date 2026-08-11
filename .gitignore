@@ -1,0 +1,24 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Local data cache (raw MOEX downloads) — reproducible from data/moex_iss.py, not versioned
+data/raw/
+*.parquet
+
+.DS_Store
+.idea/
+.vscode/
+
+# LaTeX build artifacts (reports/report.pdf itself is versioned)
+reports/*.aux
+reports/*.log
+reports/*.out

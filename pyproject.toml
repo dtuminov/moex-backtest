@@ -1,0 +1,64 @@
+[project]
+name = "moex-backtest"
+version = "0.1.0"
+description = "Event-driven backtesting engine and strategy research toolkit for the Russian equity/derivatives market (MOEX)"
+readme = "README.md"
+authors = [
+    { name = "dtuminov", email = "d.tuminov1@outlook.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.28.1",
+    "numpy>=2.5.2",
+    "pandas>=3.0.5",
+    "pyarrow>=25.0.1",
+]
+
+[build-system]
+requires = ["uv_build>=0.10.8,<0.11.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "matplotlib>=3.11.1",
+    "mypy>=2.3.0",
+    "pandas-stubs>=3.0.5.260730",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "respx>=0.23.1",
+    "ruff>=0.16.2",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",   # pycodestyle / pyflakes
+    "I",             # isort
+    "UP",            # pyupgrade
+    "B",             # bugbear
+    "SIM",           # simplify
+    "N",             # pep8-naming
+    "RUF",           # ruff-specific
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["moex_backtest"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+module = "pyarrow.*"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=moex_backtest --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["src/moex_backtest"]
