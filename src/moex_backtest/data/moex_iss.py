@@ -89,7 +89,7 @@ class MoexISSClient:
         """Fetch full daily trading history for one instrument.
 
         Paginates transparently and concatenates all pages. Returns an empty
-        DataFrame (not an error) if the instrument has no history in range.
+        DataFrame if the instrument has no history in range.
         """
         path = f"/history/engines/{engine}/markets/{market}"
         if board is not None:

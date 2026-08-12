@@ -1,15 +1,9 @@
 """End-to-end demo: real MOEX data -> cached fetch -> SMA-crossover backtest -> metrics.
 
-Runs on the IMOEX index rather than a single tradable instrument on purpose:
-indices have deep, unrestricted history on the ISS API, unlike individual
-equities (capped at ~35 days for anonymous access) — see
-`moex_backtest.data.moex_iss`. A SMA(20, 100) crossover needs a few years of
-daily bars to say anything at all, so an index is what makes this demo
-possible without an authenticated session.
-
-This proves the pipeline works end-to-end on live numbers. Picking an
-actual tradable instrument and a strategy with a real edge is the next
-step, once this engine gets wired up to a Finam Arena entry.
+Runs on the IMOEX index, not a single equity: anonymous ISS access limits
+equity history to ~35 trading days, and a SMA(20, 100) crossover needs years
+of bars — see `moex_backtest.data.moex_iss.MoexISSClient` for the access-depth
+details.
 
 Run with: uv run python scripts/run_demo.py
 """

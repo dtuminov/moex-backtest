@@ -13,10 +13,10 @@ from moex_backtest.engine.events import Bar, FillEvent, OrderEvent
 class SimulatedBroker:
     """Fills orders at the bar open plus a fixed linear slippage and commission.
 
-    Both cost models are deliberately simple (percentage commission, fixed
-    basis-point slippage against the trade direction) — realistic enough to
-    keep a strategy honest about turnover, without pretending to model a
-    limit order book this engine has no data for.
+    Both cost models are deliberately simple: percentage commission, fixed
+    basis-point slippage against the trade direction. That's enough to make
+    turnover show up as a real cost in the summary metrics; it doesn't model
+    a limit order book, which this engine has no data for.
     """
 
     def __init__(self, commission_rate: float = 0.0005, slippage_bps: float = 5.0) -> None:

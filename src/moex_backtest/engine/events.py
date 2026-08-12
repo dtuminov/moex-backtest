@@ -1,9 +1,8 @@
 """Typed events that flow through the backtest loop: Bar -> Signal -> Order -> Fill.
 
-Each event is an immutable, timestamped record. Keeping them as distinct
-types (rather than passing raw dicts/tuples around) is what makes the
-strategy/portfolio/broker boundary in :mod:`moex_backtest.engine.backtester`
-enforceable and testable in isolation.
+Each event is an immutable, timestamped record. Distinct types (versus raw
+dicts/tuples) make the strategy/portfolio/broker boundary in
+:mod:`moex_backtest.engine.backtester` enforceable and testable in isolation.
 """
 
 from __future__ import annotations

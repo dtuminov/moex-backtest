@@ -1,8 +1,8 @@
 """Single-symbol portfolio: cash/position bookkeeping and target-weight sizing.
 
-v1 scope is deliberately single-symbol — cross-asset risk limits (gross/net
-exposure across a book, correlation-aware sizing) are a real design problem
-on their own and belong in a follow-up rather than half-built in here.
+v1 scope is deliberately single-symbol. Cross-asset risk limits (gross/net
+exposure across a book, correlation-aware sizing) are a separate design
+problem — see the Roadmap in the top-level README.
 """
 
 from __future__ import annotations

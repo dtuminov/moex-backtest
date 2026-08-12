@@ -13,10 +13,10 @@ class SmaCrossoverStrategy:
     closes is above the `slow`-period SMA, flat otherwise. Flat until `slow`
     bars of history exist.
 
-    Deliberately simple, and long-only on purpose — the broker doesn't model
-    borrow cost, so a short position here would look free when it isn't.
-    This strategy exists to exercise the engine end-to-end on real data, not
-    as something worth trading as-is.
+    Long-only on purpose: the broker doesn't model borrow cost, so a short
+    position here would look free when it costs real money to hold. This
+    strategy exists to exercise the engine end-to-end on real data — see the
+    Limitations section of the top-level README before trading it as-is.
     """
 
     def __init__(self, fast_window: int, slow_window: int) -> None:
