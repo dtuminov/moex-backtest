@@ -1,11 +1,11 @@
 """Risk/return metrics for a periodic-return series.
 
 Every function takes plain period returns (e.g. daily simple returns,
-``equity.pct_change()``) rather than prices, so the same functions work for
-any bar size — the caller supplies ``periods_per_year`` to annualize (252
-for daily, 12 for monthly, etc). All functions raise ``ValueError`` on an
-empty series instead of silently returning ``NaN``: a metric computed on no
-data is a bug at the call site, not a valid (if degenerate) result.
+``equity.pct_change()``), so the same functions work for any bar size — the
+caller supplies ``periods_per_year`` to annualize (252 for daily, 12 for
+monthly, etc). All functions raise ``ValueError`` on an empty series instead
+of silently returning ``NaN``: a metric computed on no data is a bug at the
+call site.
 """
 
 from __future__ import annotations
@@ -36,36 +36,46 @@ def annualized_volatility(returns: pd.Series, periods_per_year: int = 252) -> fl
 def sharpe_ratio(
     returns: pd.Series, risk_free_rate: float = 0.0, periods_per_year: int = 252
 ) -> float:
-    """Annualized Sharpe ratio using a constant annual risk-free rate.
+    """Annualized Sharpe ratio: mean(excess) / std(excess) * sqrt(periods_per_year).
 
-    ``(annualized_return - risk_free_rate) / annualized_volatility``. Returns
-    ``inf``/``-inf`` if volatility is zero (a constant return series).
+    ``risk_free_rate`` is an annual rate, converted to a per-period rate by
+    dividing by ``periods_per_year`` and subtracted from every return before
+    taking the mean/std. This is the textbook definition (Sharpe 1994) —
+    per-period arithmetic mean and sample standard deviation, not annualized
+    return over annualized volatility, which is a different (and for
+    volatile series, systematically lower) number. Returns ``inf``/``-inf``
+    if the standard deviation is zero (a constant return series).
     """
     _require_non_empty(returns)
-    excess = annualized_return(returns, periods_per_year) - risk_free_rate
-    vol = annualized_volatility(returns, periods_per_year)
-    if vol == 0.0:
-        return float("inf") if excess >= 0 else float("-inf")
-    return excess / vol
+    period_rf = risk_free_rate / periods_per_year
+    excess = returns - period_rf
+    std = float(excess.std(ddof=1))
+    if std == 0.0:
+        return float("inf") if excess.mean() >= 0 else float("-inf")
+    return float(excess.mean() / std * np.sqrt(periods_per_year))
 
 
 def sortino_ratio(
     returns: pd.Series, risk_free_rate: float = 0.0, periods_per_year: int = 252
 ) -> float:
-    """Like :func:`sharpe_ratio`, but only penalizes downside deviation (return < 0).
+    """Like :func:`sharpe_ratio`, but the denominator only penalizes downside deviation.
 
-    Returns ``inf`` if there are no negative returns in the sample (no
-    downside risk observed) and the excess return is non-negative.
+    Downside deviation is ``sqrt(mean(min(excess, 0) ** 2))``, averaged over
+    *all* ``N`` periods, not just the periods with a shortfall — a period
+    with non-negative excess return contributes 0 to the sum but still
+    counts in ``N`` (the van der Meer/Sortino definition). Returns ``inf``
+    if no period has a shortfall against ``risk_free_rate`` and the mean
+    excess return is non-negative.
     """
     _require_non_empty(returns)
-    excess = annualized_return(returns, periods_per_year) - risk_free_rate
-    downside = returns[returns < 0]
-    if downside.empty:
-        return float("inf") if excess >= 0 else float("-inf")
-    downside_vol = float(np.sqrt((downside**2).mean()) * np.sqrt(periods_per_year))
-    if downside_vol == 0.0:
-        return float("inf") if excess >= 0 else float("-inf")
-    return excess / downside_vol
+    period_rf = risk_free_rate / periods_per_year
+    excess = returns - period_rf
+    mean_excess = float(excess.mean())
+    shortfall = excess.clip(upper=0.0)
+    downside_dev = float(np.sqrt((shortfall**2).mean()))
+    if downside_dev == 0.0:
+        return float("inf") if mean_excess >= 0 else float("-inf")
+    return float(mean_excess / downside_dev * np.sqrt(periods_per_year))
 
 
 def max_drawdown(equity_curve: pd.Series) -> float:

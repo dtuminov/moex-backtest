@@ -33,7 +33,16 @@ class BacktestResult:
         return self.equity_curve.pct_change().dropna()
 
     def summary(self, periods_per_year: int = 252, risk_free_rate: float = 0.0) -> dict[str, float]:
-        """Headline metrics computed from this result via :mod:`moex_backtest.metrics`."""
+        """Headline metrics computed from this result via :mod:`moex_backtest.metrics`.
+
+        ``risk_free_rate`` defaults to 0.0, which is a simplification, not a
+        realistic RUB rate: the CBR key rate has run 10-20%+ for most of
+        this backtest's window (2018-2026). A 0% risk-free rate inflates
+        Sharpe/Sortino relative to what they'd be against the actual RUB
+        risk-free curve — pass the realistic rate for the period under test
+        if the absolute ratio value matters, not just its sign or relative
+        ranking across strategies.
+        """
         returns = self.returns()
         return {
             "annualized_return": performance.annualized_return(returns, periods_per_year),

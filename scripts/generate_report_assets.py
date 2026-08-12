@@ -1,7 +1,8 @@
-"""Runs the real analysis behind the stakeholder report: a small parameter
-grid for SMA crossover on IMOEX, a buy-and-hold benchmark, and a with/without
-transaction costs comparison — all on real MOEX ISS data. Writes a results
-table (CSV) and an equity curve chart (PNG) to reports/assets/.
+"""Generates the report assets in reports/assets/: a parameter grid for SMA
+crossover on IMOEX, a buy-and-hold benchmark, and a with/without transaction
+costs comparison, on real MOEX ISS data. Writes results.csv (all metrics per
+strategy) and equity_curve.png (equity + drawdown for the two headline
+strategies).
 
 Run with: uv run python scripts/generate_report_assets.py
 """
@@ -82,27 +83,44 @@ def main() -> None:
                 print(f"  {metric:>22}: {value:10.4f}")
     print(f"\nWrote {csv_path}")
 
-    fig, ax = plt.subplots(figsize=(8, 4.5))
-    ax.plot(
-        bh_result.equity_curve.index,
-        bh_result.equity_curve.values,
-        label="Buy & Hold",
-        linewidth=1.2,
-    )
-    ax.plot(
-        best_result.equity_curve.index,
-        best_result.equity_curve.values,
-        label="SMA(20,100) crossover",
-        linewidth=1.2,
-    )
-    ax.set_title(f"{SYMBOL}: equity curve, {span}")
-    ax.set_ylabel("Portfolio value, RUB")
-    ax.legend()
-    ax.grid(alpha=0.3)
-    fig.tight_layout()
     png_path = ASSETS_DIR / "equity_curve.png"
-    fig.savefig(png_path, dpi=150)
+    _plot_equity_and_drawdown(bh_result, best_result, span, png_path)
     print(f"Wrote {png_path}")
+
+
+def _drawdown(equity: pd.Series) -> pd.Series:
+    return equity / equity.cummax() - 1.0
+
+
+def _plot_equity_and_drawdown(
+    bh_result: BacktestResult, best_result: BacktestResult, span: str, png_path: Path
+) -> None:
+    """Equity curves on top, drawdown of each strategy below, shared x-axis."""
+    fig, (ax_equity, ax_dd) = plt.subplots(
+        2, 1, figsize=(9, 6), sharex=True, gridspec_kw={"height_ratios": [2, 1]}
+    )
+    series = [
+        (bh_result, "Buy & Hold"),
+        (best_result, "SMA(20,100) crossover"),
+    ]
+    for result, label in series:
+        equity = result.equity_curve
+        drawdown_pct = _drawdown(equity).to_numpy(dtype=float) * 100
+        ax_equity.plot(equity.index, equity.values, label=label, linewidth=1.2)
+        line = ax_dd.plot(equity.index, drawdown_pct, linewidth=1.0)[0]
+        ax_dd.fill_between(equity.index, drawdown_pct, 0, alpha=0.15, color=line.get_color())
+
+    ax_equity.set_title(f"{SYMBOL}: equity curve and drawdown, {span}")
+    ax_equity.set_ylabel("Portfolio value, RUB")
+    ax_equity.legend()
+    ax_equity.grid(alpha=0.3)
+
+    ax_dd.set_ylabel("Drawdown, %")
+    ax_dd.set_xlabel("Date")
+    ax_dd.grid(alpha=0.3)
+
+    fig.tight_layout()
+    fig.savefig(png_path, dpi=150)
 
 
 if __name__ == "__main__":

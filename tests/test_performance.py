@@ -62,16 +62,30 @@ def test_sortino_ratio_is_infinite_with_no_downside_returns() -> None:
     assert sortino_ratio(returns) == float("inf")
 
 
-def test_sortino_ratio_matches_a_hand_computed_formula() -> None:
+def test_sharpe_ratio_matches_a_hand_computed_formula() -> None:
+    # Standard convention: mean(returns) / sample_std(returns) * sqrt(periods_per_year),
+    # not annualized_return / annualized_volatility (a different, CAGR-based number).
     returns = pd.Series([0.02, -0.03, 0.01, -0.01])
-    growth = 1.02 * 0.97 * 1.01 * 0.99
-    expected_excess = growth ** (1 / 4) - 1.0
-    downside = [-0.03, -0.01]
-    expected_downside_vol = math.sqrt(sum(x**2 for x in downside) / len(downside))
+    expected_mean = sum(returns) / len(returns)  # -0.0025
+    expected_std = math.sqrt(sum((r - expected_mean) ** 2 for r in returns) / (len(returns) - 1))
+
+    result = sharpe_ratio(returns, periods_per_year=1)
+
+    assert result == pytest.approx(expected_mean / expected_std)
+
+
+def test_sortino_ratio_matches_a_hand_computed_formula() -> None:
+    # Downside deviation divides by N (all periods), not just the count of
+    # periods with a shortfall: two of these four periods are non-negative
+    # and contribute 0 to the sum, but still count in the denominator.
+    returns = pd.Series([0.02, -0.03, 0.01, -0.01])
+    expected_mean = sum(returns) / len(returns)  # -0.0025
+    shortfalls = [min(r, 0.0) for r in returns]  # [0, -0.03, 0, -0.01]
+    expected_downside_dev = math.sqrt(sum(s**2 for s in shortfalls) / len(returns))
 
     result = sortino_ratio(returns, periods_per_year=1)
 
-    assert result == pytest.approx(expected_excess / expected_downside_vol)
+    assert result == pytest.approx(expected_mean / expected_downside_dev)
 
 
 def test_max_drawdown_finds_the_deepest_trough() -> None:
