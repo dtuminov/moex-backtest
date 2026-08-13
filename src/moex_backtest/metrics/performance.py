@@ -20,10 +20,31 @@ def _require_non_empty(returns: pd.Series) -> None:
 
 
 def annualized_return(returns: pd.Series, periods_per_year: int = 252) -> float:
-    """Geometric annualized return: ``(1 + total_return) ** (periods_per_year / n) - 1``."""
+    """Geometric annualized return: ``(1 + total_return) ** (periods_per_year / n) - 1``.
+
+    Raises ``ValueError`` if the compounded growth factor is ``<= 0`` (i.e.
+    the total return over the period is ``<= -100%``). The product of
+    ``(1 + returns)`` can only reach ``<= 0`` if *at least one period's own*
+    return is ``<= -100%`` — every well-formed per-period return above that
+    floor is a strictly positive factor, so no amount of compounding across
+    *moderate* losses can drive the product negative on its own. A single
+    period that bad typically means equity crossed zero within one bar (e.g.
+    a leveraged short gapping through zero) — a raw
+    ``float(growth ** fractional_exponent)`` would otherwise raise an opaque
+    ``TypeError`` (Python refuses to convert the resulting complex number to
+    a float) instead of explaining what happened. See ``Portfolio``'s equity
+    floor for how the engine limits how much *further* damage such a bar can
+    do, even though it can't undo that one bar's own return.
+    """
     _require_non_empty(returns)
     n = len(returns)
     growth = float(np.prod((1.0 + returns).to_numpy(dtype=float)))
+    if growth <= 0.0:
+        raise ValueError(
+            "cannot annualize a return series with total return <= -100% "
+            f"(compounded growth factor = {growth!r}); equity was wiped out or went "
+            "negative over the period, so a geometric/CAGR-style return is undefined"
+        )
     return float(growth ** (periods_per_year / n)) - 1.0
 
 
@@ -61,11 +82,10 @@ def sortino_ratio(
     """Like :func:`sharpe_ratio`, but the denominator only penalizes downside deviation.
 
     Downside deviation is ``sqrt(mean(min(excess, 0) ** 2))``, averaged over
-    *all* ``N`` periods, not just the periods with a shortfall — a period
-    with non-negative excess return contributes 0 to the sum but still
-    counts in ``N`` (the van der Meer/Sortino definition). Returns ``inf``
-    if no period has a shortfall against ``risk_free_rate`` and the mean
-    excess return is non-negative.
+    all ``N`` periods: a period with non-negative excess return contributes
+    0 to the sum but still counts toward ``N`` (the van der Meer/Sortino
+    definition). Returns ``inf`` if no period has a shortfall against
+    ``risk_free_rate`` and the mean excess return is non-negative.
     """
     _require_non_empty(returns)
     period_rf = risk_free_rate / periods_per_year
@@ -105,7 +125,9 @@ def historical_var(returns: pd.Series, alpha: float = 0.05) -> float:
     """Historical (non-parametric) Value at Risk at level ``alpha``, as a positive loss fraction.
 
     E.g. ``historical_var(returns, alpha=0.05) == 0.03`` means: over this
-    sample, losses exceeded 3% in the worst 5% of periods.
+    sample, losses exceeded 3% in the worst 5% of periods. The quantile is
+    estimated with pandas' default linear interpolation between the two
+    nearest observed returns (``Series.quantile``'s ``interpolation="linear"``).
     """
     _require_non_empty(returns)
     if not 0.0 < alpha < 1.0:
@@ -116,6 +138,8 @@ def historical_var(returns: pd.Series, alpha: float = 0.05) -> float:
 def historical_cvar(returns: pd.Series, alpha: float = 0.05) -> float:
     """Historical Conditional VaR / Expected Shortfall: mean loss in the worst ``alpha``
     tail, as a positive loss fraction. Always ``>= historical_var`` at the same ``alpha``.
+    The tail cutoff uses the same linearly-interpolated quantile as
+    :func:`historical_var`.
     """
     _require_non_empty(returns)
     if not 0.0 < alpha < 1.0:

@@ -16,7 +16,7 @@ touching the strategy code.
 
 ## Methodology
 
-- **No lookahead, enforced by the loop, not by convention.** A strategy sees
+- **The loop structurally prevents lookahead.** A strategy sees
   bars only up to and including the current one
   (`generate_signals(bar, history)`). Orders sized from bar *t*'s signal are
   executed at bar *t+1*'s **open**, never at bar *t*'s own close.
@@ -65,7 +65,9 @@ pending orders (from bar t-1) --[SimulatedBroker]--> fills --> Portfolio.apply_f
 Starting capital 1,000,000 RUB. Commission 0.04%, slippage 5bps per trade
 unless noted. `sharpe_ratio`/`sortino_ratio` use the standard convention:
 per-period mean return over per-period standard deviation, scaled by
-`sqrt(252)` — see `metrics/performance.py`.
+`sqrt(252)` — see `metrics/performance.py`. `Trades` (`num_trades` in
+`summary()`) counts individual fill events, not round-trip entry/exit
+pairs — a position opened and later closed counts as 2, not 1.
 
 | Strategy | Ann. return | Ann. vol | Sharpe | Sortino | Max DD | Calmar | Trades |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -138,8 +140,8 @@ push and PR.
   the natural next step here).
 - Execution adapter for the Finam Trade API, so the same `Strategy` can run
   live in Финам Арена instead of against `SimulatedBroker`.
-- A strategy actually worth trading — `SmaCrossoverStrategy` exists to
-  exercise the engine, not to make money.
+- A strategy actually worth trading — `SmaCrossoverStrategy` is here purely
+  as an end-to-end smoke test for the engine.
 
 ## Limitations
 

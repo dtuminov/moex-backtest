@@ -30,18 +30,37 @@ class BacktestResult:
     fills: list[FillEvent]
 
     def returns(self) -> pd.Series:
+        """Per-bar simple returns of the equity curve.
+
+        Raises ``ValueError`` if the equity curve has fewer than 2 points:
+        ``pct_change()`` has nothing to diff against a single point (or
+        none), and — consistent with this codebase's metrics functions,
+        which raise rather than silently return NaN on empty input (see
+        :func:`moex_backtest.metrics.performance._require_non_empty`) — a
+        return computed on no data flags a bug at the call site that's worth
+        surfacing immediately. This most often means the backtest ran over
+        too short a window (e.g. a single bar).
+        """
+        if len(self.equity_curve) < 2:
+            raise ValueError(
+                "need at least 2 bars to compute returns, got an equity curve with "
+                f"{len(self.equity_curve)} point(s) — run the backtest over a longer window"
+            )
         return self.equity_curve.pct_change().dropna()
 
     def summary(self, periods_per_year: int = 252, risk_free_rate: float = 0.0) -> dict[str, float]:
         """Headline metrics computed from this result via :mod:`moex_backtest.metrics`.
 
-        ``risk_free_rate`` defaults to 0.0, which is a simplification, not a
-        realistic RUB rate: the CBR key rate has run 10-20%+ for most of
-        this backtest's window (2018-2026). A 0% risk-free rate inflates
-        Sharpe/Sortino relative to what they'd be against the actual RUB
-        risk-free curve — pass the realistic rate for the period under test
-        if the absolute ratio value matters, not just its sign or relative
-        ranking across strategies.
+        ``risk_free_rate`` defaults to 0.0 for simplicity. The CBR key rate
+        has actually run 10-20%+ for most of this backtest's window
+        (2018-2026), so a 0% assumption inflates Sharpe/Sortino relative to
+        what they'd be against the real RUB risk-free curve — pass the
+        realistic rate for the period under test if the absolute ratio value
+        matters, not just its sign or relative ranking across strategies.
+
+        ``num_trades`` counts individual fill events (one per executed
+        order), not round-trip entry/exit pairs — a single position that is
+        opened and later closed counts as 2, not 1.
         """
         returns = self.returns()
         return {

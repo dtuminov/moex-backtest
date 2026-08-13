@@ -7,6 +7,7 @@ dicts/tuples) make the strategy/portfolio/broker boundary in
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import pandas as pd
@@ -58,3 +59,17 @@ class FillEvent:
     quantity: float  # positive = bought, negative = sold
     price: float
     commission: float
+
+
+def require_tradeable_price(price: float, *, context: str) -> None:
+    """Raise ``ValueError`` if ``price`` is not safe to divide or multiply by.
+
+    A zero, negative, or NaN price is a legitimate shape for bad/degenerate
+    market data to take — e.g. ``moex_backtest.data.moex_iss`` warns that most
+    FORTS option-days carry no real trades — and letting one flow into a
+    sizing division or a fill-price multiplication produces a silent
+    ``ZeroDivisionError``, an infinite order size, or a NaN that poisons the
+    rest of the equity curve. Fail loudly at the point of use instead.
+    """
+    if not math.isfinite(price) or price <= 0:
+        raise ValueError(f"{context}: price must be a finite number > 0, got {price!r}")

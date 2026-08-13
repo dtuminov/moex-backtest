@@ -105,3 +105,65 @@ def test_mark_to_market_records_equity_curve_points() -> None:
 def test_rejects_non_positive_initial_cash(bad_kwargs: dict[str, float]) -> None:
     with pytest.raises(ValueError):
         Portfolio(**bad_kwargs)
+
+
+def test_equity_floor_force_closes_position_and_halts_when_equity_hits_zero_or_below() -> None:
+    # Short 100 shares at 100 (cash goes to 20_000), then the price gaps 10x
+    # against the short: equity = 20_000 - 100 * 1_000 = -80_000.
+    portfolio = Portfolio(initial_cash=10_000.0)
+    portfolio.apply_fill(
+        FillEvent(_BAR.timestamp, "SBER", quantity=-100.0, price=100.0, commission=0.0)
+    )
+    assert portfolio.cash == pytest.approx(20_000.0)
+
+    adverse_bar = Bar(pd.Timestamp("2026-01-06"), "SBER", 1000.0, 1010.0, 990.0, 1000.0, 1000.0)
+    portfolio.mark_to_market(adverse_bar)
+
+    assert portfolio.halted is True
+    assert portfolio.position == 0.0
+    assert portfolio.cash == pytest.approx(-80_000.0)  # floored at (not below) the observed equity
+    assert list(portfolio.equity_curve().values) == pytest.approx([-80_000.0])
+
+
+def test_halted_portfolio_emits_no_further_orders_regardless_of_signal() -> None:
+    portfolio = Portfolio(initial_cash=10_000.0)
+    portfolio.apply_fill(
+        FillEvent(_BAR.timestamp, "SBER", quantity=-100.0, price=100.0, commission=0.0)
+    )
+    adverse_bar = Bar(pd.Timestamp("2026-01-06"), "SBER", 1000.0, 1010.0, 990.0, 1000.0, 1000.0)
+    portfolio.mark_to_market(adverse_bar)
+    assert portfolio.halted is True
+
+    orders = portfolio.orders_from_signals(
+        [SignalEvent(adverse_bar.timestamp, "SBER", target_weight=1.0)], adverse_bar
+    )
+
+    assert orders == []
+
+
+def test_equity_does_not_deteriorate_further_once_halted() -> None:
+    portfolio = Portfolio(initial_cash=10_000.0)
+    portfolio.apply_fill(
+        FillEvent(_BAR.timestamp, "SBER", quantity=-100.0, price=100.0, commission=0.0)
+    )
+    bar_2 = Bar(pd.Timestamp("2026-01-06"), "SBER", 1000.0, 1010.0, 990.0, 1000.0, 1000.0)
+    portfolio.mark_to_market(bar_2)
+    assert portfolio.halted is True
+
+    # Even a further, more extreme adverse move must not move equity anymore:
+    # the position was force-closed, so there's nothing left to mark.
+    bar_3 = Bar(pd.Timestamp("2026-01-07"), "SBER", 5000.0, 5100.0, 4900.0, 5000.0, 1000.0)
+    portfolio.mark_to_market(bar_3)
+
+    assert list(portfolio.equity_curve().values) == pytest.approx([-80_000.0, -80_000.0])
+
+
+@pytest.mark.parametrize("bad_close", [0.0, -1.0, float("nan")])
+def test_orders_from_signals_rejects_non_tradeable_close_price(bad_close: float) -> None:
+    portfolio = Portfolio(initial_cash=10_000.0)
+    bad_bar = Bar(_BAR.timestamp, "SBER", 100.0, 101.0, 99.0, bad_close, 1000.0)
+
+    with pytest.raises(ValueError, match="price must be a finite number > 0"):
+        portfolio.orders_from_signals(
+            [SignalEvent(bad_bar.timestamp, "SBER", target_weight=1.0)], bad_bar
+        )

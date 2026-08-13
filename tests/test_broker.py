@@ -57,3 +57,24 @@ def test_zero_quantity_orders_produce_no_fill() -> None:
 def test_rejects_negative_cost_parameters(bad_kwargs: dict[str, float]) -> None:
     with pytest.raises(ValueError):
         SimulatedBroker(**bad_kwargs)
+
+
+@pytest.mark.parametrize("bad_open", [0.0, -1.0, float("nan")])
+def test_execute_rejects_non_tradeable_open_price_for_a_nonzero_order(bad_open: float) -> None:
+    broker = SimulatedBroker()
+    bad_bar = Bar(_BAR.timestamp, "SBER", bad_open, 101.0, 99.0, 100.5, 1000.0)
+
+    with pytest.raises(ValueError, match="price must be a finite number > 0"):
+        broker.execute([OrderEvent(bad_bar.timestamp, "SBER", quantity=10.0)], bad_bar)
+
+
+@pytest.mark.parametrize("bad_open", [0.0, -1.0, float("nan")])
+def test_execute_does_not_validate_price_when_there_is_nothing_to_fill(bad_open: float) -> None:
+    # A degenerate price on a bar we're not trading (all orders zero-quantity)
+    # must not raise: there is no division/multiplication happening.
+    broker = SimulatedBroker()
+    bad_bar = Bar(_BAR.timestamp, "SBER", bad_open, 101.0, 99.0, 100.5, 1000.0)
+
+    fills = broker.execute([OrderEvent(bad_bar.timestamp, "SBER", quantity=0.0)], bad_bar)
+
+    assert fills == []

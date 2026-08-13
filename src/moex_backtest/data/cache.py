@@ -1,11 +1,9 @@
 """Local parquet cache for MOEX ISS history frames.
 
-Network history calls are the slowest and least reliable part of the
-pipeline, and data for a closed trading day never changes — so a keyed
-on-disk cache avoids re-fetching the same range on every run while a
-strategy is being iterated on. Not meant to cache in-progress (today's)
-sessions; callers that need live data should bypass the cache for `end ==
-today`.
+Closed trading days never change, so a keyed on-disk cache avoids
+re-fetching the same range on every run while a strategy is being
+iterated on. Callers that need today's still-in-progress session should
+bypass the cache for `end == today`.
 """
 
 from __future__ import annotations

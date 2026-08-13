@@ -93,6 +93,53 @@ def test_run_raises_on_empty_bars() -> None:
         backtester.run(bars, symbol="SBER")
 
 
+class _AlwaysFullyShort:
+    """Constant target_weight=-1.0 — used to blow a short position through
+    the equity floor via a large adverse (upward) price move."""
+
+    def generate_signals(self, bar: Bar, history: Sequence[Bar]) -> list[SignalEvent]:
+        return [SignalEvent(bar.timestamp, bar.symbol, target_weight=-1.0)]
+
+
+def test_short_position_plus_10x_adverse_move_does_not_crash_and_halts_the_engine() -> None:
+    # Reproduction of the original bug: a short position against a ~10x
+    # adverse price move over 6 bars used to make Portfolio.equity go
+    # negative, which in turn made annualized_return() raise an uncaught
+    # TypeError (float() on a complex number) instead of failing cleanly.
+    #
+    # Now: the equity floor in Portfolio force-closes the position and halts
+    # further trading the first time equity hits zero or below, so
+    # Backtester.run() itself never crashes. The one bar where equity
+    # actually crosses zero still has a return <= -100% by construction (an
+    # equity curve cannot go from positive to <= 0 any other way), so
+    # summary() raises a clear ValueError from annualized_return's
+    # defense-in-depth guard rather than an opaque TypeError.
+    prices = [100.0, 100.0, 110.0, 180.0, 300.0, 500.0, 800.0, 1000.0]  # ~10x over 6 bars
+    bars = _bars_frame(
+        [(f"2026-01-{i + 1:02d}", p, p + 1.0, p - 1.0, p, 1000.0) for i, p in enumerate(prices)]
+    )
+    backtester = Backtester(_AlwaysFullyShort(), initial_cash=10_000.0, broker=_NO_COST_BROKER)
+
+    result = backtester.run(bars, symbol="SBER")  # must not raise
+
+    equity = list(result.equity_curve.values)
+    assert min(equity) <= 0.0  # equity did go to/below zero at some point
+    assert equity[-1] == equity[-2]  # flat (halted) for the last two bars
+
+    with pytest.raises(ValueError, match="total return <= -100%"):
+        result.summary()
+
+
+def test_backtest_over_a_single_bar_raises_a_clear_error_on_summary() -> None:
+    bars = _bars_frame([("2026-01-05", 100.0, 101.0, 99.0, 100.0, 1000.0)])
+    backtester = Backtester(BuyAndHoldStrategy(), initial_cash=10_000.0, broker=_NO_COST_BROKER)
+
+    result = backtester.run(bars, symbol="SBER")
+
+    with pytest.raises(ValueError, match="need at least 2 bars to compute returns"):
+        result.summary()
+
+
 def test_summary_reports_the_expected_metric_keys() -> None:
     bars = _bars_frame(
         [

@@ -7,7 +7,7 @@ matters (it's what keeps the backtest free of lookahead bias).
 
 from __future__ import annotations
 
-from moex_backtest.engine.events import Bar, FillEvent, OrderEvent
+from moex_backtest.engine.events import Bar, FillEvent, OrderEvent, require_tradeable_price
 
 
 class SimulatedBroker:
@@ -28,10 +28,17 @@ class SimulatedBroker:
         self._slippage_bps = slippage_bps
 
     def execute(self, orders: list[OrderEvent], bar: Bar) -> list[FillEvent]:
+        """Fill each order at the bar's open, then apply slippage and commission in that order.
+
+        Slippage moves the price first; commission is then charged on that
+        already-slipped fill price, not on the bar's raw open — so the two
+        costs compound rather than being computed independently.
+        """
         fills = []
         for order in orders:
             if order.quantity == 0:
                 continue
+            require_tradeable_price(bar.open, context="SimulatedBroker.execute: bar.open")
             direction = 1.0 if order.quantity > 0 else -1.0
             fill_price = bar.open * (1.0 + direction * self._slippage_bps / 10_000)
             commission = abs(order.quantity) * fill_price * self._commission_rate

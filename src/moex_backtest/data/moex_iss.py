@@ -15,7 +15,7 @@ import httpx
 import pandas as pd
 
 _BASE_URL: Final = "https://iss.moex.com/iss"
-_PAGE_SIZE: Final = 100  # rows per page, enforced server-side, not configurable
+_PAGE_SIZE: Final = 100  # rows per page, fixed by the server
 _DATE_FMT: Final = "%Y-%m-%d"
 
 
@@ -168,10 +168,18 @@ class MoexISSClient:
                 response = self._client.get(url, params=params)
                 response.raise_for_status()
                 return response.json()  # type: ignore[no-any-return]
-            except (httpx.TransportError, httpx.HTTPStatusError) as exc:
+            except httpx.HTTPStatusError as exc:
+                # 4xx (bad secid/board/params, auth, etc.) is a permanent client
+                # error — retrying with backoff just burns the retry budget on
+                # something that will never resolve. Only 5xx (transient server
+                # trouble) and transport-level failures are worth retrying.
+                if 400 <= exc.response.status_code < 500:
+                    raise MoexISSError(f"GET {url} failed with {exc.response.status_code}") from exc
                 last_error = exc
-                if attempt < self._max_retries:
-                    time.sleep(self._retry_backoff * (2**attempt))
+            except httpx.TransportError as exc:
+                last_error = exc
+            if attempt < self._max_retries:
+                time.sleep(self._retry_backoff * (2**attempt))
         raise MoexISSError(
             f"GET {url} failed after {self._max_retries + 1} attempts"
         ) from last_error

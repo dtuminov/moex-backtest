@@ -100,6 +100,42 @@ def test_transient_5xx_is_retried_then_succeeds() -> None:
 
 
 @respx.mock
+def test_transient_transport_error_is_retried_then_succeeds() -> None:
+    route = respx.get(
+        "https://iss.moex.com/iss/history/engines/stock/markets/index/securities/IMOEX.json"
+    )
+    route.side_effect = [
+        httpx.ConnectError("connection refused"),
+        httpx.Response(200, json=_payload([_row("2026-08-10", 3000)])),
+    ]
+
+    with MoexISSClient(request_delay=0, retry_backoff=0.001) as client:
+        frame = client.index_history("IMOEX", date(2026, 8, 1), date(2026, 8, 10))
+
+    assert route.call_count == 2
+    assert len(frame) == 1
+
+
+@respx.mock
+def test_404_fails_immediately_without_retrying() -> None:
+    # A typo'd secid returns a permanent 404 — retrying it with backoff
+    # would just burn the whole retry budget on an error that can never
+    # resolve. Only transient 5xx/transport errors should be retried.
+    route = respx.get(
+        "https://iss.moex.com/iss/history/engines/stock/markets/shares"
+        "/boards/TQBR/securities/NOSUCH.json"
+    ).mock(return_value=httpx.Response(404))
+
+    with (
+        MoexISSClient(request_delay=0, retry_backoff=0.001, max_retries=3) as client,
+        pytest.raises(MoexISSError),
+    ):
+        client.shares_history("NOSUCH", date(2026, 8, 1), date(2026, 8, 10))
+
+    assert route.call_count == 1
+
+
+@respx.mock
 def test_exhausted_retries_raise_moex_iss_error() -> None:
     respx.get(
         "https://iss.moex.com/iss/history/engines/stock/markets/index/securities/IMOEX.json"

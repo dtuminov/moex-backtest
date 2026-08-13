@@ -160,3 +160,28 @@ def test_var_rejects_alpha_outside_open_unit_interval(alpha: float) -> None:
 def test_metrics_reject_empty_series(fn: object) -> None:
     with pytest.raises(ValueError, match="empty"):
         fn(pd.Series([], dtype=float))  # type: ignore[operator]
+
+
+def test_annualized_return_raises_a_clear_error_for_total_return_at_or_below_minus_100pct() -> None:
+    # A single -100% (or worse) period return means equity was wiped out —
+    # `growth ** fractional_exponent` on a non-positive base would otherwise
+    # raise an opaque TypeError (complex result), not a ValueError.
+    returns = pd.Series([-1.0])
+
+    with pytest.raises(ValueError, match="total return <= -100%"):
+        annualized_return(returns)
+
+
+def test_annualized_return_raises_instead_of_crashing_when_one_bad_period_wipes_out_equity() -> (
+    None
+):
+    # Surrounding periods are unremarkable; one period alone (e.g. a
+    # leveraged short gapping through zero within a single bar) is enough to
+    # push the compounded growth factor negative. This is the residual case
+    # Portfolio's equity floor can limit the fallout of but not undo -- the
+    # ValueError guard is the defense-in-depth for exactly this bar. Before
+    # the fix, this raised an opaque TypeError from a complex number.
+    returns = pd.Series([0.05, -6.0, 0.0])
+
+    with pytest.raises(ValueError, match="total return <= -100%"):
+        annualized_return(returns)
