@@ -1,0 +1,7 @@
+{"timestamp": "2026-09-09T21:31:42.968035+00:00", "hypothesis": "momentum", "stage": "phase_a1", "config": {"lookback": 12, "skip": 1}, "is_sharpe": 1.6244679727263622, "is_p_value": 0.001, "n_observations": 36}
+{"timestamp": "2026-09-09T21:31:42.990543+00:00", "hypothesis": "momentum", "stage": "grid", "config": {"lookback": 3, "skip": 0}, "is_sharpe": 0.8449420772802664, "is_p_value": null, "n_observations": 45}
+{"timestamp": "2026-09-09T21:31:43.013594+00:00", "hypothesis": "momentum", "stage": "grid", "config": {"lookback": 3, "skip": 1}, "is_sharpe": 0.5498227717189071, "is_p_value": null, "n_observations": 45}
+{"timestamp": "2026-09-09T21:31:43.034706+00:00", "hypothesis": "momentum", "stage": "grid", "config": {"lookback": 6, "skip": 0}, "is_sharpe": 1.0740777453214647, "is_p_value": null, "n_observations": 42}
+{"timestamp": "2026-09-09T21:31:43.055179+00:00", "hypothesis": "momentum", "stage": "grid", "config": {"lookback": 6, "skip": 1}, "is_sharpe": 1.1375932830889512, "is_p_value": null, "n_observations": 42}
+{"timestamp": "2026-09-09T21:31:43.073515+00:00", "hypothesis": "momentum", "stage": "grid", "config": {"lookback": 12, "skip": 0}, "is_sharpe": 1.5855607332608364, "is_p_value": null, "n_observations": 36}
+{"timestamp": "2026-09-09T21:31:43.118134+00:00", "hypothesis": "lowvol", "stage": "phase_a1", "config": {"lookback": 12}, "is_sharpe": -0.5665938635343147, "is_p_value": 0.9095, "n_observations": 42}

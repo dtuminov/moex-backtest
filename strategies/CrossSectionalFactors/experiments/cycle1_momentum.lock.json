@@ -1,0 +1,10 @@
+{
+  "cycle_name": "cycle1_momentum",
+  "config": {
+    "lookback": 12,
+    "skip": 1
+  },
+  "is_metric_name": "is_sharpe",
+  "is_metric_value": 1.6244679727263622,
+  "locked_at": "2026-09-09T21:31:43.073709+00:00"
+}
