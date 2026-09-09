@@ -139,7 +139,12 @@ push and PR.
   (the risk-oriented portfolio construction from my coursework project is
   the natural next step here).
 - Execution adapter for the Finam Trade API, so the same `Strategy` can run
-  live in Финам Арена instead of against `SimulatedBroker`.
+  live in Финам Арена instead of against `SimulatedBroker`. The data side of
+  this is done — `moex_backtest.data.finam.FinamClient` authenticates against
+  the Trade API and fetches full-depth daily history (auth lifts MOEX ISS's
+  ~35-trading-day anonymous cap; verified end-to-end for SBER against 5 years
+  of real data via `scripts/finam_history_check.py`) — order placement and
+  account/position sync are still open.
 - A strategy actually worth trading — `SmaCrossoverStrategy` is here purely
   as an end-to-end smoke test for the engine.
 

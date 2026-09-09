@@ -18,6 +18,9 @@ data/raw/
 .idea/
 .vscode/
 
+# Finam Trade API credentials — never versioned
+.env
+
 # LaTeX build artifacts (reports/report.pdf itself is versioned)
 reports/*.aux
 reports/*.log
