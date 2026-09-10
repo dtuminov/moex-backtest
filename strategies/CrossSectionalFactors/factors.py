@@ -54,6 +54,37 @@ def momentum_signal(
     return recent / past - 1.0
 
 
+def composite_momentum_signal(
+    monthly_close: pd.DataFrame, horizons: tuple[int, ...], skip_months: int
+) -> pd.DataFrame:
+    """Multi-horizon composite momentum: for each `horizons` value, computes
+    `momentum_signal` and converts it to a cross-sectional percentile rank
+    (`DataFrame.rank(axis=1, pct=True)`, in (0, 1], NaN-aware) -- percentile
+    rank, not the raw return, so a longer horizon's naturally larger-
+    magnitude return doesn't dominate a shorter horizon's in the average
+    (see `strategies/CrossSectionalFactors/PREREGISTRATION_cycle2_momentum_ensemble.md`
+    for why this specific construction, and why `horizons` is a fixed
+    literature convention rather than swept as a grid).
+
+    The composite score at a given (date, ticker) is the mean percentile
+    rank across `horizons`, defined **only** where every horizon has a
+    valid (non-NaN) `momentum_signal` value for that cell -- in practice
+    this means the composite is gated by the longest horizon's own history
+    requirement, exactly like a single-horizon signal at that longest
+    horizon; no NaN cell gets a partial composite score built from fewer
+    horizons than the rest of the panel.
+    """
+    if len(horizons) < 2:
+        raise ValueError(f"horizons needs at least 2 values to be a composite, got {horizons}")
+    ranks = [
+        momentum_signal(monthly_close, j, skip_months).rank(axis=1, pct=True) for j in horizons
+    ]
+    stacked = pd.concat(ranks, keys=range(len(ranks)))
+    composite = stacked.groupby(level=1).mean()
+    valid_count = stacked.notna().groupby(level=1).sum()
+    return composite.where(valid_count == len(ranks))
+
+
 def low_vol_signal(
     masked_daily_returns: pd.DataFrame, formation_dates: pd.DatetimeIndex, lookback_months: int
 ) -> pd.DataFrame:

@@ -1,0 +1,15 @@
+{
+  "cycle_name": "cycle2_momentum_ensemble",
+  "config": {
+    "horizons": [
+      3,
+      6,
+      9,
+      12
+    ],
+    "skip": 1
+  },
+  "is_metric_name": "is_sharpe",
+  "is_metric_value": 1.1492647874395174,
+  "locked_at": "2026-09-10T05:20:46.716791+00:00"
+}
