@@ -7,6 +7,29 @@ Generic over the strategy: the caller supplies a ``metric_fn(parameter_value)
 returns whichever scalar metric is being checked (typically Sharpe). This
 module only evaluates the grid and classifies the resulting curve — it has no
 opinion on what a strategy or its parameters are.
+
+**``is_plateau`` looks only at the two jumps touching the base point** (its
+nearest tested neighbor on each side), not the largest jump anywhere in the
+swept grid. An earlier version compared the single largest adjacent jump
+*anywhere in the sorted grid* against the median jump — this mislabeled a
+genuinely smooth neighborhood around the base value as a SPIKE whenever the
+grid's largest jump happened to fall somewhere else entirely (e.g. at the far
+edge of the swept range, across an unrelated regime boundary that has nothing
+to do with the base value's own stability). This is not hypothetical: it is
+exactly what happened on
+``strategies/CrossSectionalFactors/reports/momentum_sensitivity_diagnostic.md``
+in this project's MOEX track — cycle 1 locked a momentum lookback of 12
+months, and the default ±10/20/30% grid's largest jump landed between the
+*unrelated* 8-month and 10-month points (a real regime boundary a few months
+below the base value, not a symptom of fragility at 12 itself), which was
+enough to flag the whole curve as a SPIKE even though 12's immediate
+neighbors (11 and 13 months) were close to it. A follow-up dense scan (2..20
+months) confirmed the base value sits on a broad, genuinely smooth local hump
+peaking around 10-14 months. ``max_adjacent_jump``/``median_adjacent_jump``
+(whole-grid statistics) are kept on the result as informational context —
+still useful for noticing "the plateau ends abruptly somewhere in the tested
+range" — but no longer drive the plateau/spike verdict; ``max_local_jump`` is
+the field that does.
 """
 
 from __future__ import annotations
@@ -35,14 +58,25 @@ class ParameterSensitivityResult:
     """Sorted by ``parameter_value`` ascending, including the base point
     (``relative_change == 0.0``)."""
     max_adjacent_jump: float
+    """Largest jump between any two adjacent points anywhere in the sorted
+    grid (not necessarily touching the base point) — informational context
+    only, see module docstring; does not drive ``is_plateau``."""
     median_adjacent_jump: float
+    """Median jump across the whole sorted grid — the "typical variability"
+    scale that both ``max_adjacent_jump`` and ``max_local_jump`` are compared
+    against."""
+    max_local_jump: float
+    """Largest jump between the base point and its nearest tested neighbor
+    on either side (only one side if the base point sits at the edge of the
+    grid). This is what ``is_plateau`` is actually computed from — see
+    module docstring for why."""
     is_plateau: bool
-    """``True`` if the metric changes smoothly across the grid (see
-    ``max_adjacent_jump`` / ``median_adjacent_jump`` and the
-    ``spike_ratio`` threshold in :func:`parameter_sensitivity`), ``False`` if
-    one adjacent step is a disproportionate jump relative to the others —
-    evidence the base point is an isolated spike rather sitting on a plateau
-    of similar-performing neighbors."""
+    """``True`` if the metric changes smoothly in the base point's immediate
+    neighborhood (``max_local_jump`` small relative to ``median_adjacent_jump``,
+    per the ``spike_ratio`` threshold in :func:`parameter_sensitivity`),
+    ``False`` if a step immediately adjacent to the base value is a
+    disproportionate jump — evidence the base point itself is an isolated
+    spike, not evidence that the grid is bumpy somewhere else."""
 
 
 def parameter_sensitivity(
@@ -62,10 +96,15 @@ def parameter_sensitivity(
     practical screen, tune ``spike_ratio`` if it misfires on a particular
     curve shape): sort all points (base + perturbed) by ``parameter_value``,
     take the absolute differences between metric values at adjacent points,
-    and flag a spike if the single largest adjacent jump exceeds
-    ``spike_ratio`` times the median adjacent jump. A smoothly degrading
-    curve has adjacent jumps of a similar order of magnitude (ratio close to
-    1); an isolated spike produces one jump much larger than the rest.
+    and flag a spike if the jump from the base point to its nearest tested
+    neighbor (on whichever side, or both) exceeds ``spike_ratio`` times the
+    median adjacent jump *across the whole grid* (the median is still a
+    whole-grid statistic — a reasonable "typical variability" scale even
+    though only the base's own local jump is compared against it; see module
+    docstring for why the *numerator* is local, not global). A smoothly
+    degrading neighborhood around the base has a local jump of a similar
+    order of magnitude to the grid's typical jump (ratio close to 1); an
+    isolated spike at the base produces a local jump much larger than that.
 
     ``base_value`` must be nonzero (relative perturbation is undefined at 0).
     Raises ``ValueError`` if ``relative_steps`` is empty, contains ``0.0``
@@ -99,15 +138,33 @@ def parameter_sensitivity(
     max_jump = float(np.max(adjacent_jumps))
     median_jump = float(np.median(adjacent_jumps))
 
+    # Local jump: only the jump(s) touching the base point (relative_change
+    # == 0.0), on whichever side(s) it has a neighbor — see module docstring
+    # for why this, and not the grid-wide max, is what should drive
+    # is_plateau. adjacent_jumps[i] is the jump between points[i] and
+    # points[i+1], so the base's own local jump(s) are adjacent_jumps at
+    # index (base_index - 1) (jump to its left neighbor, if any) and/or
+    # base_index (jump to its right neighbor, if any).
+    base_index = next(i for i, p in enumerate(points) if p.relative_change == 0.0)
+    local_jumps = [
+        adjacent_jumps[i]
+        for i in (base_index - 1, base_index)
+        if 0 <= i < len(adjacent_jumps)
+    ]
+    max_local_jump = float(max(local_jumps))
+
     # median_jump == 0 (all jumps equal, most degenerately: all zero, i.e. a
     # perfectly flat curve) can't produce a finite ratio; a flat curve is by
-    # definition a plateau (max_jump would also be 0 in that all-zero case).
-    is_plateau = max_jump <= spike_ratio * median_jump if median_jump > 0.0 else max_jump == 0.0
+    # definition a plateau (max_local_jump would also be 0 in that case).
+    is_plateau = (
+        max_local_jump <= spike_ratio * median_jump if median_jump > 0.0 else max_local_jump == 0.0
+    )
 
     return ParameterSensitivityResult(
         parameter_name=parameter_name,
         points=points,
         max_adjacent_jump=max_jump,
         median_adjacent_jump=median_jump,
+        max_local_jump=max_local_jump,
         is_plateau=is_plateau,
     )

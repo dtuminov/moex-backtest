@@ -62,6 +62,52 @@ def test_hand_computed_max_and_median_adjacent_jump() -> None:
 
     assert result.max_adjacent_jump == pytest.approx(9.0)
     assert result.median_adjacent_jump == pytest.approx(5.0)  # median of [1.0, 9.0]
+    # Only 3 points total (5, 10, 15) -- both grid jumps touch the base at
+    # 10, so max_local_jump coincides with max_adjacent_jump here.
+    assert result.max_local_jump == pytest.approx(9.0)
+
+
+def test_a_distant_cliff_outside_the_bases_neighbors_does_not_cause_a_false_spike() -> None:
+    # Regression test for the exact failure mode found on the MOEX track
+    # (strategies/CrossSectionalFactors/reports/momentum_sensitivity_diagnostic.md):
+    # a huge jump far from the base value (here, only the very first/most
+    # negative grid point is an outlier) must not flag the base's own
+    # genuinely smooth neighborhood as a spike.
+    def metric_fn(value: float) -> float:
+        if value < 9.0:  # only the -30% point (8.4) falls here
+            return -100.0
+        return 1.0 + 0.001 * (value - 12.0)  # tiny smooth wiggle everywhere else
+
+    result = parameter_sensitivity("lookback", base_value=12.0, metric_fn=metric_fn)
+
+    assert result.max_adjacent_jump > 100.0  # the distant cliff is still visible...
+    assert result.max_local_jump < 0.01  # ...but doesn't touch the base's own neighborhood
+    assert result.is_plateau is True
+
+
+def test_a_spike_immediately_at_the_base_is_still_caught_even_with_a_calm_grid() -> None:
+    # The complementary case: nothing unusual anywhere else in the grid, but
+    # the base's immediate neighbors both drop sharply -- must still flag.
+    def metric_fn(value: float) -> float:
+        return 1.0 if value == 12.0 else 0.0
+
+    result = parameter_sensitivity("lookback", base_value=12.0, metric_fn=metric_fn)
+
+    assert result.is_plateau is False
+
+
+def test_base_point_at_the_edge_of_the_grid_uses_its_single_neighbor() -> None:
+    # relative_steps are all positive here, so the base point (10) is the
+    # leftmost point in the sorted grid and has only one neighbor (11).
+    def metric_fn(value: float) -> float:
+        return {10.0: 1.0, 11.0: 100.0, 12.0: 100.5, 13.0: 101.0}[value]
+
+    result = parameter_sensitivity(
+        "param", base_value=10.0, metric_fn=metric_fn, relative_steps=(0.1, 0.2, 0.3)
+    )
+
+    assert result.max_local_jump == pytest.approx(99.0)
+    assert result.is_plateau is False
 
 
 def test_flat_curve_is_a_plateau_even_with_zero_median_jump() -> None:
