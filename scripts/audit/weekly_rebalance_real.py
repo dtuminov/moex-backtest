@@ -19,7 +19,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path("/Users/dmitrijtuminov/Developer/Код/Кванты/moex-backtest")
+# Resolved from this file's location rather than hardcoded: the only edit
+# made to these scripts after the run that produced the reported tables.
+REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "strategies" / "CrossSectionalFactors"))
 sys.path.insert(0, str(REPO_ROOT))
 
