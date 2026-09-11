@@ -45,6 +45,27 @@ def load_close_panel(cache_dir: Path | str = "data/raw") -> pd.DataFrame:
     return panel.ffill(limit=5)
 
 
+def load_volume_panel(cache_dir: Path | str = "data/raw") -> pd.DataFrame:
+    """Wide panel of daily trading volume (shares), same tickers/date-union
+    construction as `load_close_panel`. Unlike price, a day with no cached
+    row for a ticker really traded zero shares -- filled with ``0.0``, never
+    forward-filled the way price is (see `factors.daily_dollar_volume`,
+    `factors.illiquidity_signal`, cycle 3).
+    """
+    cache_dir = Path(cache_dir)
+    series: dict[str, pd.Series] = {}
+    for ticker in UNIVERSE:
+        path = cache_dir / f"finam_daily_{ticker}{_CACHE_KEY_SUFFIX}.parquet"
+        if not path.exists():
+            raise FileNotFoundError(f"{path} missing -- run scripts/import_universe.py first")
+        frame = pd.read_parquet(path).sort_values("TRADEDATE")
+        idx = pd.DatetimeIndex(frame["TRADEDATE"]).tz_convert(None).normalize()
+        series[ticker] = pd.Series(frame["VOLUME"].to_numpy(dtype=float), index=idx)
+
+    panel = pd.DataFrame(series).sort_index()
+    return panel.fillna(0.0)
+
+
 def monthly_close_panel(close_panel: pd.DataFrame) -> pd.DataFrame:
     """`close_panel` resampled to one row per calendar month (last available
     close that month, per ticker) -- the formation-date price series

@@ -103,6 +103,50 @@ def low_vol_signal(
     return vol.reindex(formation_dates, method="ffill")
 
 
+def daily_dollar_volume(close_panel: pd.DataFrame, volume_panel: pd.DataFrame) -> pd.DataFrame:
+    """Daily traded value in rubles per ticker (``VOLUME * CLOSE``), the
+    input `illiquidity_signal` averages over a trailing window (cycle 3,
+    H-ILLIQ). ``close_panel`` should be `panel.load_close_panel`'s ffilled
+    panel (price continuity across isolated small gaps); ``volume_panel``
+    `panel.load_volume_panel`'s zero-filled panel (a no-trade day really
+    traded zero rubles, unlike a stale-but-plausible carried-forward price)
+    -- both built from the same per-ticker date union, so their indices
+    align without reindexing.
+    """
+    return close_panel * volume_panel
+
+
+def illiquidity_signal(
+    daily_dollar_volume_panel: pd.DataFrame,
+    formation_dates: pd.DatetimeIndex,
+    lookback_months: int,
+) -> pd.DataFrame:
+    """Trailing mean daily traded value (rubles) as of each formation date
+    (window = ``lookback_months * 21`` trading days, matching
+    `low_vol_signal`'s convention) -- a HIGHER value means MORE liquid. Pass
+    ``direction="low_long"`` to `backtest_factor` to go long the
+    least-liquid leg: the illiquidity-premium construction is compensation
+    for trading friction, not a misreaction story, so it is deliberately
+    the same portfolio-construction direction as `low_vol_signal` (long the
+    low value) even though the underlying mechanism is different -- see
+    `strategies/CrossSectionalFactors/PREREGISTRATION_cycle3_illiquidity.md`.
+
+    Deliberately **not** masked for the 2022-03-24 halt-reopening day or
+    CBOM's 2026-04-13 event (contrast `low_vol_signal`, which masks both
+    from realized-*volatility* windows via
+    `known_events.mask_returns_for_vol_estimation`): a volume spike distorts
+    a 12-month rolling *mean* linearly and boundedly (at most ~1/252nd of a
+    12-month window), unlike the quadratic distortion an extreme *return*
+    has on a variance estimate. See the pre-registration's "Deliberately
+    not masking..." section for the full reasoning.
+    """
+    window = lookback_months * 21
+    mean_dollar_volume = daily_dollar_volume_panel.rolling(
+        window=window, min_periods=window // 2
+    ).mean()
+    return mean_dollar_volume.reindex(formation_dates, method="ffill")
+
+
 def forward_monthly_returns(monthly_close: pd.DataFrame) -> pd.DataFrame:
     """Return earned holding from each formation date to the next one:
     row ``t`` holds ``price[t+1] / price[t] - 1`` (real price return, never

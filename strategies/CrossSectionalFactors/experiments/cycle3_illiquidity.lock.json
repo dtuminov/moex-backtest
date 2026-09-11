@@ -1,0 +1,9 @@
+{
+  "cycle_name": "cycle3_illiquidity",
+  "config": {
+    "lookback": 12
+  },
+  "is_metric_name": "is_sharpe",
+  "is_metric_value": 0.6737235153057053,
+  "locked_at": "2026-09-10T08:00:52.044777+00:00"
+}
