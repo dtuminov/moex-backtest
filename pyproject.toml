@@ -35,6 +35,11 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# Archived verbatim from the 10.09.2026 gate audit: these are exactly the
+# scripts that produced every table in `reports/why_no_alpha.md`. Reformatting
+# them would weaken that provenance claim, so they are kept as-run and not
+# linted. Anything promoted out of here to a real script gets linted normally.
+extend-exclude = ["scripts/audit"]
 
 [tool.ruff.lint]
 select = [

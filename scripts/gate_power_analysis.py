@@ -12,7 +12,9 @@ rates honestly, by simulation, using the gate exactly as configured in
 **Design**: rather than assume a distribution for monthly factor returns,
 this reuses the REAL empirical residual shape, autocorrelation and
 cross-config correlation of our own momentum grid (full-period 2018-2026,
-demeaned) as a multivariate noise template, and adds a *known* drift on top
+demeaned -- see `_load_real_templates`, and note the demeaning was MISSING
+until 10.09.2026, which invalidated this report's first release) as a
+multivariate noise template, and adds a *known* drift on top
 to control the true annualized Sharpe precisely. Many independent
 realizations are drawn via a multivariate stationary block bootstrap (the
 same Politis & Romano 1994 algorithm `validation._bootstrap` already uses,
@@ -114,8 +116,16 @@ def _load_real_templates() -> pd.DataFrame:
         )
         series[_config_label(lookback, skip)] = result.returns
 
-    frame = pd.DataFrame(series)
-    return frame.dropna(how="any")  # common valid index across every config
+    frame = pd.DataFrame(series).dropna(how="any")  # common valid index across every config
+    # Demean each column by its own full-period mean, so the template carries
+    # only the empirical *shape* (autocorrelation, fat tails, cross-config
+    # correlation) and the drift added in `_run_one_replicate` is the ONLY
+    # source of true edge. Missing until 10.09.2026: without it every "true
+    # SR = X" label silently meant X + that column's real historical Sharpe
+    # (locked 12_1: +0.92), so the "SR = 0" row measured power at an
+    # effective Sharpe near 0.9 rather than Type I error. See
+    # `reports/why_no_alpha.md` A0 for the corrected numbers this restores.
+    return frame - frame.mean()
 
 
 def _real_trial_sharpe_variance() -> float:
@@ -319,6 +329,15 @@ def _write_report(
 ) -> None:
     lines: list[str] = []
     lines.append("# Gate power analysis")
+    lines.append("")
+    lines.append(
+        "> **Supersedes the 10.09.2026 first release of this file.** That run resampled a "
+        "noise template that was never demeaned, so every `true SR = X` row below actually "
+        "measured behavior at `X` plus that column's own real historical Sharpe (locked "
+        "`12_1`: +0.92) -- the `SR = 0` row was not a null at all. Fixed in "
+        "`_load_real_templates`; see `reports/why_no_alpha.md` A0. Headline change: power at "
+        "a true Sharpe of 1.0 is 1.6%, not the 38.4% first reported."
+    )
     lines.append("")
     lines.append(
         f"N_REPLICATES={N_REPLICATES} per true-Sharpe value, N_BOOT_SIMS={N_BOOT_SIMS} "
