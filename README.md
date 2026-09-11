@@ -77,6 +77,18 @@ from being a clean story, and all three are in
 3. **The in-sample signal is marginal.** Phase A1 p=0.076 against a 0.10
    cutoff, and PBO=0.300 clears the <0.5 bar without being comfortable.
 
+**Independently reconfirmed on a second engine.** The same strategy file ran
+locally on [ziplime](https://pypi.org/project/ziplime/) — the engine behind
+Finam's cloud arena, not a reimplementation — against the same cached data:
+OOS Sharpe +0.984 against our +1.087, monthly-return correlation 0.929 across
+the 56 shared months, mean absolute difference 1.19pp/month. The gap (0.103)
+sits well under the 0.2 threshold fixed before the run as the bar for going
+looking for a bug. Full writeup and methodology: `ORACLE_RESULTS.md` in the
+sibling `finam-championship` repository (not published here). A
+Russian-language narrative report covering the mechanism, pre-registration,
+results, cross-engine verification and limitations in full, with charts, is
+in [`reports/h_illiq_report.pdf`](reports/h_illiq_report.pdf).
+
 ## The validation gate, and its measured power
 
 Candidates must clear all six criteria: bootstrap significance, walk-forward
