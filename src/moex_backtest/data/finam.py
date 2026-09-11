@@ -254,7 +254,13 @@ class FinamClient:
     # -- transport ---------------------------------------------------------------
 
     def _authed_request(
-        self, method: str, path: str, *, params: dict[str, Any] | None = None
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+        max_retries: int | None = None,
     ) -> dict[str, Any]:
         """Issue a request that requires a JWT, refreshing/retrying on auth failure.
 
@@ -262,17 +268,37 @@ class FinamClient:
         call (`_ensure_token`); if the server still rejects the token with
         401 (clock skew, mid-flight revocation), forces one re-auth and
         retries the request exactly once before giving up.
+
+        ``max_retries=0`` disables the transport-level retry loop for this
+        call. State-changing calls (order placement) must pass it: a retried
+        POST that actually succeeded server-side but whose response was lost
+        places the order twice. The 401 re-auth retry stays, because a
+        request rejected for auth never reached the matching engine.
         """
         token = self._ensure_token()
         try:
-            return self._request(method, path, params=params, headers={"Authorization": token})
+            return self._request(
+                method,
+                path,
+                params=params,
+                json=json,
+                headers={"Authorization": token},
+                max_retries=max_retries,
+            )
         except FinamAPIError as exc:
             if "401" not in str(exc):
                 raise
             self._token = None
             self._token_expires_at = None
             token = self._ensure_token()
-            return self._request(method, path, params=params, headers={"Authorization": token})
+            return self._request(
+                method,
+                path,
+                params=params,
+                json=json,
+                headers={"Authorization": token},
+                max_retries=max_retries,
+            )
 
     def _request(
         self,
@@ -282,10 +308,12 @@ class FinamClient:
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
+        max_retries: int | None = None,
     ) -> dict[str, Any]:
         url = f"{self._base_url}{path}"
+        retries = self._max_retries if max_retries is None else max_retries
         last_error: Exception | None = None
-        for attempt in range(self._max_retries + 1):
+        for attempt in range(retries + 1):
             try:
                 response = self._client.request(
                     method, url, params=params, json=json, headers=headers
@@ -310,11 +338,9 @@ class FinamClient:
                 last_error = exc
             except httpx.TransportError as exc:
                 last_error = exc
-            if attempt < self._max_retries:
+            if attempt < retries:
                 time.sleep(self._retry_backoff * (2**attempt))
-        raise FinamAPIError(
-            f"{method} {url} failed after {self._max_retries + 1} attempts"
-        ) from last_error
+        raise FinamAPIError(f"{method} {url} failed after {retries + 1} attempts") from last_error
 
 
 def _decimal(field: dict[str, Any]) -> float:
